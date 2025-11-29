@@ -1,0 +1,19 @@
+{
+  "configurations": [
+    {
+      "name": "Debug executable 'vm-thingy'",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "env": {
+          "RUST_BACKTRACE": "1"
+        },
+        "args": [
+          "run",
+          "--bin=vm-thingy"
+        ]
+      },
+      "args": []
+    }
+  ]
+}
