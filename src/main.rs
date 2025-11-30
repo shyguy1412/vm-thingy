@@ -44,12 +44,10 @@ struct Memory<'a> {
 
 fn main() {
     let mut binary_pointer = 0u16;
-    // let mut registers: Registers = [0; REGISTER_COUNT as usize];
-    //start with 4kb stack. index 0 is the stack pointer
-    // let mut stack: Box<[u16]> = Box::new([0u16; MIN_STACK_SIZE + 1]);
 
     let mut memory = Memory {
         registers: [0; REGISTER_COUNT as usize],
+        //start with 4kb stack. index 0 is the stack pointer
         stack: &mut [0u16; MIN_STACK_SIZE + 1],
         ram: [0; RAM_SIZE],
     };
@@ -59,8 +57,6 @@ fn main() {
     for i in 0..BINARY.len() {
         memory.ram[i] = BINARY[i]
     }
-
-    let mut retc = 0;
 
     loop {
         if binary_pointer % 2 != 0 {
@@ -86,10 +82,7 @@ fn main() {
             15 => op_rmem(binary_pointer, &mut memory),
             16 => op_wmem(binary_pointer, &mut memory),
             17 => op_call(binary_pointer, &mut memory),
-            18 => {
-                retc += 1;
-                op_ret(binary_pointer, &mut memory, retc)
-            }
+            18 => op_ret(binary_pointer, &mut memory),
             19 => op_out(binary_pointer, &mut memory),
             20 => op_in(binary_pointer, &mut memory),
             21 => op_noop(binary_pointer, &mut memory), // no-op
@@ -248,10 +241,10 @@ fn op_add(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
 #[allow(unused_mut)] // https://github.com/rust-lang/rust-analyzer/issues/21168 
 fn op_mult(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
     let register = read_register(ptr + 2, memory)?;
-    let a = read_uint15(ptr + 4, memory)? as u32;
-    let b = read_uint15(ptr + 6, memory)? as u32;
+    let a = read_uint15(ptr + 4, memory)?;
+    let b = read_uint15(ptr + 6, memory)?;
 
-    memory.registers[register] = ((a * b) % REGISTER_1 as u32) as u16;
+    memory.registers[register] = a.wrapping_mul(b) % REGISTER_1;
 
     Ok(ptr + 8)
 }
@@ -354,7 +347,7 @@ fn op_call(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
 
 //   18
 //   remove the top element from the stack and jump to it; empty stack = halt
-fn op_ret(ptr: u16, memory: &mut Memory, retc: u32) -> Result<u16, Error> {
+fn op_ret(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
     let Memory {
         registers,
         stack: [stack_ptr, stack @ ..],
@@ -391,9 +384,7 @@ fn op_in(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
     let mut buf: [u8; 1] = [0];
     io::stdin().read(&mut buf).map_err(|e| Error::IOError(e))?;
 
-    println!("READ: {}", buf[0] as char);
-
-    panic!();
+    Ok(ptr + 4)
 }
 
 fn op_noop(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
