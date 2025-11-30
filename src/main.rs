@@ -107,7 +107,6 @@ fn op_halt() -> Result<u16, Error> {
 
 //   1 a b
 //   set register <a> to the value of <b>
-#[allow(unused_mut)] // https://github.com/rust-lang/rust-analyzer/issues/21168
 fn op_set(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
     let register = read_register(ptr + 2, memory)?;
     let value = read_uint15(ptr + 4, memory)?;
@@ -169,7 +168,6 @@ fn op_pop(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
 
 //   4 a b c
 //   set <a> to 1 if <b> is equal to <c>; set it to 0 otherwise
-#[allow(unused_mut)] // https://github.com/rust-lang/rust-analyzer/issues/21168 
 fn op_eq(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
     let register = read_register(ptr + 2, memory)?;
     let a = read_uint15(ptr + 4, memory)?;
@@ -182,7 +180,6 @@ fn op_eq(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
 
 //   5 a b c
 //   set <a> to 1 if <b> is greater than <c>; set it to 0 otherwise
-#[allow(unused_mut)] // https://github.com/rust-lang/rust-analyzer/issues/21168 
 fn op_gt(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
     let register = read_register(ptr + 2, memory)?;
     let a = read_uint15(ptr + 4, memory)?;
@@ -225,7 +222,6 @@ fn op_jf(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
 
 //   9 a b c
 //   assign into <a> the sum of <b> and <c> (modulo 32768)
-#[allow(unused_mut)] // https://github.com/rust-lang/rust-analyzer/issues/21168 
 fn op_add(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
     let register = read_register(ptr + 2, memory)?;
     let a = read_uint15(ptr + 4, memory)?;
@@ -238,7 +234,6 @@ fn op_add(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
 
 //   10 a b c
 //   store into <a> the product of <b> and <c> (modulo 32768)
-#[allow(unused_mut)] // https://github.com/rust-lang/rust-analyzer/issues/21168 
 fn op_mult(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
     let register = read_register(ptr + 2, memory)?;
     let a = read_uint15(ptr + 4, memory)?;
@@ -251,7 +246,6 @@ fn op_mult(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
 
 //   11 a b c
 //   store into <a> the remainder of <b> divided by <c>
-#[allow(unused_mut)] // https://github.com/rust-lang/rust-analyzer/issues/21168 
 fn op_mod(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
     let register = read_register(ptr + 2, memory)?;
     let a = read_uint15(ptr + 4, memory)?;
@@ -264,7 +258,6 @@ fn op_mod(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
 
 //   12 a b c
 //   stores into <a> the bitwise and of <b> and <c>
-#[allow(unused_mut)] // https://github.com/rust-lang/rust-analyzer/issues/21168 
 fn op_and(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
     let register = read_register(ptr + 2, memory)?;
     let a = read_uint15(ptr + 4, memory)?;
@@ -277,7 +270,6 @@ fn op_and(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
 
 //   13 a b c
 //   stores into <a> the bitwise or of <b> and <c>
-#[allow(unused_mut)] // https://github.com/rust-lang/rust-analyzer/issues/21168 
 fn op_or(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
     let register = read_register(ptr + 2, memory)?;
     let a = read_uint15(ptr + 4, memory)?;
@@ -290,7 +282,6 @@ fn op_or(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
 
 //   14 a b
 //   stores 15-bit bitwise inverse of <b> in <a>
-#[allow(unused_mut)] // https://github.com/rust-lang/rust-analyzer/issues/21168
 fn op_not(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
     let register = read_register(ptr + 2, memory)?;
     let a = read_uint15(ptr + 4, memory)?;
@@ -302,7 +293,6 @@ fn op_not(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
 
 //   15 a b
 //   read memory at address <b> and write it to <a>
-#[allow(unused_mut)] // https://github.com/rust-lang/rust-analyzer/issues/21168
 fn op_rmem(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
     let register = read_register(ptr + 2, memory)?;
     let addr = read_uint15_address(ptr + 4, memory)?;
@@ -315,7 +305,6 @@ fn op_rmem(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
 
 //   16 a b
 //   write the value from <b> into memory at address <a>
-#[allow(unused_mut)] // https://github.com/rust-lang/rust-analyzer/issues/21168
 fn op_wmem(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
     let addr = read_uint15_address(ptr + 2, &memory)?;
     let [byte1, byte2] = read_uint15(ptr + 4, memory)?.to_le_bytes();
@@ -370,11 +359,8 @@ fn op_ret(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
 //   19 a
 //   write the character represented by ascii code <a> to the terminal
 fn op_out(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
-    let char = memory.ram[ptr as usize + 2] as char;
-    if char == '=' {
-        drop(1)
-    }
-    print!("{}", char);
+    let char = read_uint15(ptr + 2, memory)? as u8 as char;
+    print!("{char}");
     Ok(ptr + 4)
 }
 
@@ -383,6 +369,8 @@ fn op_out(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
 fn op_in(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
     let mut buf: [u8; 1] = [0];
     io::stdin().read(&mut buf).map_err(|e| Error::IOError(e))?;
+    let register = read_register(ptr + 2, memory)?;
+    memory.registers[register] = u16::from_le_bytes([buf[0], 0]);
 
     Ok(ptr + 4)
 }
