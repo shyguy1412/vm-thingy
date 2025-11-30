@@ -220,75 +220,31 @@ fn op_jf(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
     Ok(new_ptr)
 }
 
-//   9 a b c
-//   assign into <a> the sum of <b> and <c> (modulo 32768)
-fn op_add(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
-    let register = read_register(ptr + 2, memory)?;
-    let a = read_uint15(ptr + 4, memory)?;
-    let b = read_uint15(ptr + 6, memory)?;
+macro_rules! operator_operation {
+    ($($ident:ident with ($($operand:ident),*) is ($($exp:tt)*))*) => ($(
+        fn $ident(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
+            let register = read_register(ptr + 2, memory)?;
+            let mut offset = 2;
 
-    memory.registers[register] = (a + b) % REGISTER_1;
+            $(
+                offset += 2;
+                let $operand = read_uint15(ptr+offset, memory)?;
+            )*
 
-    Ok(ptr + 8)
+            memory.registers[register] = $($exp)*;
+
+            Ok(ptr + offset + 2)
+        }
+    )*)
 }
 
-//   10 a b c
-//   store into <a> the product of <b> and <c> (modulo 32768)
-fn op_mult(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
-    let register = read_register(ptr + 2, memory)?;
-    let a = read_uint15(ptr + 4, memory)?;
-    let b = read_uint15(ptr + 6, memory)?;
-
-    memory.registers[register] = a.wrapping_mul(b) % REGISTER_1;
-
-    Ok(ptr + 8)
-}
-
-//   11 a b c
-//   store into <a> the remainder of <b> divided by <c>
-fn op_mod(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
-    let register = read_register(ptr + 2, memory)?;
-    let a = read_uint15(ptr + 4, memory)?;
-    let b = read_uint15(ptr + 6, memory)?;
-
-    memory.registers[register] = a % b;
-
-    Ok(ptr + 8)
-}
-
-//   12 a b c
-//   stores into <a> the bitwise and of <b> and <c>
-fn op_and(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
-    let register = read_register(ptr + 2, memory)?;
-    let a = read_uint15(ptr + 4, memory)?;
-    let b = read_uint15(ptr + 6, memory)?;
-
-    memory.registers[register] = a & b;
-
-    Ok(ptr + 8)
-}
-
-//   13 a b c
-//   stores into <a> the bitwise or of <b> and <c>
-fn op_or(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
-    let register = read_register(ptr + 2, memory)?;
-    let a = read_uint15(ptr + 4, memory)?;
-    let b = read_uint15(ptr + 6, memory)?;
-
-    memory.registers[register] = a | b;
-
-    Ok(ptr + 8)
-}
-
-//   14 a b
-//   stores 15-bit bitwise inverse of <b> in <a>
-fn op_not(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
-    let register = read_register(ptr + 2, memory)?;
-    let a = read_uint15(ptr + 4, memory)?;
-
-    memory.registers[register] = !a & ADDRESS_SPACE;
-
-    Ok(ptr + 6)
+operator_operation! {
+    op_add  with (a, b) is ((a + b) % REGISTER_1)
+    op_mult with (a, b) is (a.wrapping_mul(b) % REGISTER_1)
+    op_mod  with (a, b) is (a % b)
+    op_and  with (a, b) is (a & b)
+    op_or   with (a, b) is (a | b)
+    op_not  with (a)    is (!a & ADDRESS_SPACE)
 }
 
 //   15 a b
