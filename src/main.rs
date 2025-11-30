@@ -3,6 +3,7 @@
 use std::io::{self, Read};
 
 #[derive(Debug)]
+#[allow(dead_code)]
 enum Error {
     InvalidAddress(u16),
     InvalidUint15(u16),
