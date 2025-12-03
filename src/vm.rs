@@ -1,3 +1,5 @@
+use std::io::{self, PipeReader, PipeWriter, Read, Write};
+
 #[derive(Debug)]
 #[allow(dead_code)]
 enum Error {
@@ -5,7 +7,7 @@ enum Error {
     InvalidUint15(u16),
     InvalidRegister(u16),
     EmptyStack,
-    IOError(std::io::Error),
+    IOError(io::Error),
 }
 
 impl std::fmt::Display for Error {
@@ -28,7 +30,7 @@ const RAM_SIZE: usize = 1 << WORD_BITS + 1;
 const REGISTER_SPACE: u16 = ADDRESS_SPACE + REGISTER_COUNT;
 const REGISTER_1: u16 = ADDRESS_SPACE + 1;
 const INVALID_START: u16 = ADDRESS_SPACE + REGISTER_COUNT + 1;
-const MIN_STACK_SIZE: usize = 1 << 3;
+const MIN_STACK_SIZE: usize = 1 << 8;
 
 type Registers = [u16; REGISTER_COUNT as usize];
 type Stack = [u16];
@@ -40,31 +42,43 @@ struct Memory<'a> {
     ram: &'a mut RAM,
 }
 
-#[derive(Debug, Clone)]
+// #[derive(Debug)]
 #[allow(unused)]
 pub struct State {
+    bin: Box<[u8]>,
+
     program_ptr: u16,
     registers: Registers,
-    bin: Box<[u8]>,
     stack: Box<Stack>,
     ram: RAM,
+
+    stdout: io::PipeWriter,
+    stdin: io::PipeReader,
 }
 
 impl State {
-    pub fn init_with(bin: &[u8]) -> Self {
+    pub fn init_with(bin: &[u8]) -> (Self, (PipeReader, PipeWriter)) {
         let mut ram = [0; RAM_SIZE];
 
         for i in 0..bin.len() {
             ram[i] = bin[i]
         }
 
-        Self {
-            program_ptr: 0,
-            registers: [0; REGISTER_COUNT as usize],
-            bin: boxed_copy(bin),
-            stack: boxed_slice(MIN_STACK_SIZE),
-            ram,
-        }
+        let (stdout_reader, stdout) = io::pipe().expect("Should be able to create pipe");
+        let (stdin, stdin_writer) = io::pipe().expect("Should be able to create pipe");
+
+        (
+            Self {
+                program_ptr: 0,
+                registers: [0; REGISTER_COUNT as usize],
+                bin: boxed_copy(bin),
+                stack: boxed_slice(MIN_STACK_SIZE),
+                ram,
+                stdout,
+                stdin,
+            },
+            (stdout_reader, stdin_writer),
+        )
     }
 
     #[allow(unused)]
@@ -93,7 +107,21 @@ impl State {
             return;
         };
 
-        let mut memory = self.memory();
+        let stack_ptr = self.stack[0];
+
+        if stack_ptr as usize == (self.stack.len() - 2) / 2 {
+            self.expand_stack();
+        } else if stack_ptr as usize <= (self.stack.len() - 2) / 4
+            && stack_ptr as usize > MIN_STACK_SIZE
+        {
+            self.shrink_stack();
+        }
+
+        let mut memory = Memory {
+            registers: &mut self.registers,
+            stack: &mut self.stack,
+            ram: &mut self.ram,
+        };
 
         let result = match memory.ram[program_ptr as usize] {
             0 => op_halt(), //halt
@@ -115,8 +143,8 @@ impl State {
             16 => op_wmem(program_ptr, &mut memory),
             17 => op_call(program_ptr, &mut memory),
             18 => op_ret(program_ptr, &mut memory),
-            19 => op_out(program_ptr, &mut memory),
-            20 => op_in(program_ptr, &mut memory),
+            19 => op_out(program_ptr, &mut memory, &mut self.stdout),
+            20 => op_in(program_ptr, &mut memory, &mut self.stdin),
             21 => op_noop(program_ptr, &mut memory), // no-op
             v @ _ => panic!("Invalid instruction: {:02X} at {:02X}", v, program_ptr),
         };
@@ -124,24 +152,6 @@ impl State {
         match result {
             Ok(new_pointer) => self.program_ptr = new_pointer,
             Err(err) => panic!("{}", err),
-        }
-    }
-
-    fn memory<'a>(&'a mut self) -> Memory<'a> {
-        let stack_ptr = self.stack[0];
-
-        if stack_ptr as usize == (self.stack.len() - 2) / 2 {
-            self.expand_stack();
-        } else if stack_ptr as usize <= (self.stack.len() - 2) / 4
-            && stack_ptr as usize > MIN_STACK_SIZE
-        {
-            self.shrink_stack();
-        }
-
-        Memory {
-            registers: &mut self.registers,
-            stack: &mut self.stack,
-            ram: &mut self.ram,
         }
     }
 
@@ -375,17 +385,17 @@ fn op_ret(_: u16, memory: &mut Memory) -> Result<u16, Error> {
 
 //   19 a
 //   write the character represented by ascii code <a> to the terminal
-fn op_out(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
-    let char = read_uint15(ptr + 2, memory)? as u8 as char;
-    print!("{char}");
+fn op_out(ptr: u16, memory: &mut Memory, stdout: &mut PipeWriter) -> Result<u16, Error> {
+    let char = read_uint15(ptr + 2, memory)? as u8;
+    stdout.write(&[char]).map_err(|e| Error::IOError(e))?;
     Ok(ptr + 4)
 }
 
 //   20 a
 //   read a character from the terminal and write its ascii code to <a>; it can be assumed that once input starts, it will continue until a newline is encountered; this means that you can safely read whole lines from the keyboard instead of having to figure out how to read individual characters
-fn op_in(ptr: u16, memory: &mut Memory) -> Result<u16, Error> {
+fn op_in(ptr: u16, memory: &mut Memory, stdin: &mut PipeReader) -> Result<u16, Error> {
     let mut buf: [u8; 1] = [0];
-    std::io::Read::read(&mut std::io::stdin(), &mut buf).map_err(|e| Error::IOError(e))?;
+    stdin.read(&mut buf).map_err(|e| Error::IOError(e))?;
 
     let register = read_register(ptr + 2, memory)?;
     memory.registers[register] = u16::from_le_bytes([buf[0], 0]);
