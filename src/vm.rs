@@ -67,22 +67,21 @@ impl State {
         let (stdout_reader, stdout) = io::pipe().expect("Should be able to create pipe");
         let (stdin, stdin_writer) = io::pipe().expect("Should be able to create pipe");
 
-        (
-            Self {
-                program_ptr: 0,
-                registers: [0; REGISTER_COUNT as usize],
-                bin: boxed_copy(bin),
-                stack: boxed_slice(MIN_STACK_SIZE),
-                ram,
-                stdout,
-                stdin,
-            },
-            (stdout_reader, stdin_writer),
-        )
+        let state = Self {
+            program_ptr: 0,
+            registers: [0; REGISTER_COUNT as usize],
+            bin: boxed_copy(bin),
+            stack: boxed_slice(MIN_STACK_SIZE),
+            ram,
+            stdout,
+            stdin,
+        };
+
+        (state, (stdout_reader, stdin_writer))
     }
 
     #[allow(unused)]
-    pub fn reset(mut self) -> Self {
+    pub fn reset(&mut self) {
         self.program_ptr = 0;
 
         for i in 0..self.registers.len() {
@@ -94,8 +93,6 @@ impl State {
         for i in 0..self.ram.len() {
             self.ram[i] = *self.bin.get(i).unwrap_or(&0);
         }
-
-        self
     }
 
     pub fn done(&self) -> bool {
@@ -395,7 +392,7 @@ fn op_out(ptr: u16, memory: &mut Memory, stdout: &mut PipeWriter) -> Result<u16,
 //   read a character from the terminal and write its ascii code to <a>; it can be assumed that once input starts, it will continue until a newline is encountered; this means that you can safely read whole lines from the keyboard instead of having to figure out how to read individual characters
 fn op_in(ptr: u16, memory: &mut Memory, stdin: &mut PipeReader) -> Result<u16, Error> {
     let mut buf: [u8; 1] = [0];
-    stdin.read(&mut buf).map_err(|e| Error::IOError(e))?;
+    io::stdin().read(&mut buf).map_err(|e| Error::IOError(e))?;
 
     let register = read_register(ptr + 2, memory)?;
     memory.registers[register] = u16::from_le_bytes([buf[0], 0]);

@@ -5,18 +5,17 @@ mod vm;
 
 fn main() {
     const BINARY: &[u8; 60100] = include_bytes!("../challenge.bin");
-
     let (mut state, (stdout, stdin)) = vm::State::init_with(BINARY);
 
     let vm_thread = std::thread::spawn(move || {
-        while !state.done() {
-            state.next()
+        loop {
+            state.next();
+            state.done().then(||state.reset());
         }
     });
 
     let _ = std::thread::spawn(move || solve(stdout, stdin));
 
     let _ = vm_thread.join();
-
     println!("Terminated");
 }
