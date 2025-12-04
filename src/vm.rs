@@ -392,7 +392,8 @@ fn op_out(ptr: u16, memory: &mut Memory, stdout: &mut PipeWriter) -> Result<u16,
 //   read a character from the terminal and write its ascii code to <a>; it can be assumed that once input starts, it will continue until a newline is encountered; this means that you can safely read whole lines from the keyboard instead of having to figure out how to read individual characters
 fn op_in(ptr: u16, memory: &mut Memory, stdin: &mut PipeReader) -> Result<u16, Error> {
     let mut buf: [u8; 1] = [0];
-    io::stdin().read(&mut buf).map_err(|e| Error::IOError(e))?;
+    stdin.read(&mut buf).map_err(|e| Error::IOError(e))?;
+    // io::stdin().read(&mut buf).map_err(|e| Error::IOError(e))?;
 
     let register = read_register(ptr + 2, memory)?;
     memory.registers[register] = u16::from_le_bytes([buf[0], 0]);
