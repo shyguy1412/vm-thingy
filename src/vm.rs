@@ -73,7 +73,7 @@ impl State {
             registers: [0; REGISTER_COUNT as usize],
             bin: boxed_copy(bin),
             stack: boxed_slice(MIN_STACK_SIZE),
-            ram: Box::new(ram),
+            ram: ram,
             stdout,
             stdin,
         };
@@ -100,7 +100,7 @@ impl State {
         self.program_ptr == REGISTER_1
     }
 
-    pub fn next(mut self)  -> Self{
+    pub fn next(mut self) -> Self {
         let program_ptr @ 0..REGISTER_1 = self.program_ptr else {
             return self;
         };
