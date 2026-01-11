@@ -1,3 +1,4 @@
+use core::alloc;
 use std::io::{self, PipeReader, PipeWriter, Read, Write};
 
 #[derive(Debug)]
@@ -72,7 +73,7 @@ impl State {
             registers: [0; REGISTER_COUNT as usize],
             bin: boxed_copy(bin),
             stack: boxed_slice(MIN_STACK_SIZE),
-            ram,
+            ram: Box::new(ram),
             stdout,
             stdin,
         };
@@ -99,9 +100,9 @@ impl State {
         self.program_ptr == REGISTER_1
     }
 
-    pub fn next(&mut self) {
+    pub fn next(mut self)  -> Self{
         let program_ptr @ 0..REGISTER_1 = self.program_ptr else {
-            return;
+            return self;
         };
 
         let stack_ptr = self.stack[0];
@@ -149,7 +150,8 @@ impl State {
         match result {
             Ok(new_pointer) => self.program_ptr = new_pointer,
             Err(err) => panic!("{}", err),
-        }
+        };
+        self
     }
 
     fn expand_stack(&mut self) {
